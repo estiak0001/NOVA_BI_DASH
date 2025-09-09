@@ -30,18 +30,13 @@ import {
   Activity,
 } from "lucide-react";
 
-// // Dynamically import ApexCharts to avoid SSR issues
-// const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
-// Dynamically import ECharts to avoid SSR issues
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
-// Sample data for different metrics
 const generateTimeSeriesData = (count: number, baseValue: number) => {
   const data = [];
   const now = new Date();
-  for (let i = count; i >= 0; i--) {
-    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+  for (let i = count - 1; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     data.push([
       date.getTime(),
       Math.floor(Math.random() * (baseValue * 0.5)) + baseValue * 0.75,
@@ -53,7 +48,10 @@ const generateTimeSeriesData = (count: number, baseValue: number) => {
 export default function SalesPage() {
   const [dateRange, setDateRange] = useState("30d");
   const [metric, setMetric] = useState("all");
-  const [salesQty, setSalesQty] = useState([{ qty: 0 }]);
+  const [salesQtyAmt, setSalesQtyAmt] = useState([{ qty: 0, amt: 0 }]);
+  const [salesOverTime, setSalesOverTime] = useState<
+    { date: string; sales: number }[]
+  >([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,22 +64,14 @@ export default function SalesPage() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              query: `select sum(qty) AS qty from iceberg.kfg_analytics.fact_sales_v1`,
+              query: `SELECT SUM(qty) AS qty, SUM(sales) AS amt
+                      FROM iceberg.kfg_analytics.fact_sales_v1`,
             }),
           },
         );
 
         const result = await response.json();
-        console.log(result);
-        // Assuming the result format:
-        // {
-        //   revenue: 145231,
-        //   users: 12350,
-        //   conversionRate: 3.2,
-        //   avgSessionTime: "4m 32s"
-        // }
-
-        setSalesQty(result);
+        setSalesQtyAmt(result);
       } catch (error) {
         console.error("Failed to fetch analytics data:", error);
       }
@@ -90,16 +80,133 @@ export default function SalesPage() {
     fetchData();
   }, [dateRange, metric]);
 
+  useEffect(() => {
+    const fetchSalesOverTime = async () => {
+      try {
+        const intervals = {
+          "7d": "7 days",
+          "30d": "30 days",
+          "90d": "90 days",
+          "1y": "1 year",
+        };
+        const dateFilter = `WHERE dateinvoiced >= CURRENT_DATE - INTERVAL '${
+          intervals[dateRange] || "30 days"
+        }'`;
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `SELECT DATE_TRUNC('month', dateinvoiced) AS date, SUM(sales) AS sales
+                      FROM iceberg.kfg_analytics.fact_sales_v1
+                      GROUP BY DATE_TRUNC('month', dateinvoiced)
+                      ORDER BY DATE_TRUNC('month', dateinvoiced)`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+        const formattedData = result
+          .filter(
+            (item: { date: string; sales: number }) =>
+              item.date && item.sales != null,
+          )
+          .map((item: { date: string; sales: number }) => ({
+            date: new Date(item.date).toISOString(),
+            sales: Number(item.sales),
+          }))
+          .sort(
+            (a: { date: string }, b: { date: string }) =>
+              new Date(a.date).getTime() - new Date(b.date).getTime(),
+          );
+        setSalesOverTime(formattedData);
+      } catch (error) {
+        console.error("Error fetching sales over time:", error);
+      }
+    };
+
+    fetchSalesOverTime();
+  }, [dateRange, metric]);
+
+  const salesAreaChartOptions = {
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: any) => {
+        const data = params[0];
+        const date = new Date(data.data[0]).toLocaleString("default", {
+          month: "short",
+          year: "numeric",
+        });
+        return `${date}<br/>Sales: $${data.data[1].toLocaleString()}`;
+      },
+    },
+    xAxis: {
+      type: "time",
+      boundaryGap: false,
+      axisLabel: {
+        color: "#6B7280",
+        formatter: (value: number) => {
+          return new Date(value).toLocaleString("default", {
+            month: "short",
+            year: "numeric",
+          });
+        },
+      },
+      minInterval: 30 * 24 * 60 * 60 * 1000, // Approx. 1 month
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "#6B7280",
+        formatter: (val: number) => `$${val.toLocaleString()}`,
+      },
+      splitLine: {
+        lineStyle: {
+          color: "#E5E7EB",
+        },
+      },
+    },
+    grid: {
+      left: "3%",
+      right: "4%",
+      bottom: "3%",
+      containLabel: true,
+    },
+    series: [
+      {
+        name: "Sales",
+        type: "line",
+        smooth: true,
+        areaStyle: {
+          color: "rgba(59, 130, 246, 0.3)",
+        },
+        lineStyle: {
+          color: "#3B82F6",
+        },
+        itemStyle: {
+          color: "#3B82F6",
+        },
+        data:
+          salesOverTime.length > 0
+            ? salesOverTime.map((point) => [
+                new Date(point.date).getTime(),
+                point.sales,
+              ])
+            : generateTimeSeriesData(12, 10000),
+      },
+    ],
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Analytics Dashboard
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Sales Dashboard</h1>
           <p className="text-muted-foreground">
-            Comprehensive data analysis and insights
+            Comprehensive sales analysis and insights
           </p>
         </div>
 
@@ -142,7 +249,6 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* Key Metrics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -154,63 +260,35 @@ export default function SalesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQty[0].qty}</div>
-            {/*<p className="text-xs text-muted-foreground flex items-center">
-              <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-              +20.1% from last month
-            </p>*/}
+            <div className="text-2xl font-bold">{salesQtyAmt[0].qty}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Users className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12,350</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-              +180.1% from last month
-            </p>
+            <div className="text-2xl font-bold">{salesQtyAmt[0].amt}</div>
           </CardContent>
         </Card>
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Conversion Rate
-            </CardTitle>
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <PieChart className="h-4 w-4 text-purple-600" />
-            </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Monthly Sales</CardTitle>
+            <CardDescription>Monthly sale trends over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3.2%</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-              +12% from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Avg Session Time
-            </CardTitle>
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Activity className="h-4 w-4 text-orange-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">4m 32s</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-              +7% from last month
-            </p>
+            <ReactECharts
+              option={salesAreaChartOptions}
+              notMerge={true}
+              lazyUpdate={true}
+              style={{ height: 350 }}
+            />
           </CardContent>
         </Card>
       </div>
