@@ -1,25 +1,25 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { 
-  BarChart3, 
-  Users, 
-  Settings, 
-  Menu, 
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  BarChart3,
+  Users,
+  Settings,
+  Menu,
   Home,
   Shield,
   FileText,
   ChevronLeft,
-  ChevronRight
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { cn } from "@/lib/utils"
-import { UserProfile } from "@/components/user-profile"
-import { useSidebarContext } from "@/contexts/sidebar-context"
+  ChevronRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { cn } from "@/lib/utils";
+import { UserProfile } from "@/components/user-profile";
+import { useSidebarContext } from "@/contexts/sidebar-context";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -28,27 +28,32 @@ const navigation = [
   { name: "Users", href: "/dashboard/users", icon: Users },
   { name: "Access Control", href: "/dashboard/access", icon: Shield },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
-]
+  { name: "Sales", href: "/dashboard/sales", icon: BarChart3 },
+];
 
 export function Sidebar() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const { isCollapsed, toggle, isLoaded } = useSidebarContext()
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const { isCollapsed, toggle, isLoaded } = useSidebarContext();
 
   // Don't render until localStorage is loaded to prevent hydration mismatch
   if (!isLoaded) {
-    return null
+    return null;
   }
 
   const SidebarContent = ({ showLabels = true }: { showLabels?: boolean }) => (
-    <div className={cn(
-      "flex h-full flex-col transition-all duration-300",
-      showLabels ? "w-64" : "w-16"
-    )}>
-      <div className={cn(
-        "flex h-14 items-center border-b px-4",
-        showLabels ? "justify-between" : "justify-center"
-      )}>
+    <div
+      className={cn(
+        "flex h-full flex-col transition-all duration-300",
+        showLabels ? "w-64" : "w-16",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-14 items-center border-b px-4",
+          showLabels ? "justify-between" : "justify-center",
+        )}
+      >
         {showLabels ? (
           <>
             <Link className="flex items-center space-x-2" href="/dashboard">
@@ -80,7 +85,7 @@ export function Sidebar() {
       </div>
       <div className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
-          const Icon = item.icon
+          const Icon = item.icon;
           return (
             <Link
               key={item.name}
@@ -91,7 +96,7 @@ export function Sidebar() {
                 showLabels ? "space-x-3" : "justify-center",
                 pathname === item.href
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
               title={!showLabels ? item.name : undefined}
             >
@@ -103,7 +108,7 @@ export function Sidebar() {
                 </div>
               )}
             </Link>
-          )
+          );
         })}
       </div>
       <div className="border-t">
@@ -123,15 +128,17 @@ export function Sidebar() {
         </div>
       </div>
     </div>
-  )
+  );
 
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className={cn(
-        "hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-all duration-300",
-        isCollapsed ? "md:w-16" : "md:w-64"
-      )}>
+      <div
+        className={cn(
+          "hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-all duration-300",
+          isCollapsed ? "md:w-16" : "md:w-64",
+        )}
+      >
         <div className="flex-1 flex flex-col min-h-0 border-r bg-card">
           <SidebarContent showLabels={!isCollapsed} />
         </div>
@@ -149,5 +156,5 @@ export function Sidebar() {
         </SheetContent>
       </Sheet>
     </>
-  )
+  );
 }
