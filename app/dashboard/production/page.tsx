@@ -55,8 +55,15 @@ export default function ProductionPage() {
   const [prodByOrg, setProdByOrg] = useState<{ org: string; qty: number }[]>(
     [],
   );
+  const [prodByCatOrg, setProdByCatOrg] = useState<
+    { org: string; cat: string; qty: number }[]
+  >([]);
   const [internalByGrp, setInternalByGrp] = useState<
     { group: string; qty: number }[]
+  >([]);
+
+  const [topByProdQty, setTopByProdQty] = useState<
+    { product: string; qty: number }[]
   >([]);
 
   useEffect(() => {
@@ -149,6 +156,69 @@ export default function ProductionPage() {
   }, [dateRange, metric]);
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `SELECT
+              organization as org,
+              category as cat,
+              sum(qty) as qty
+              from iceberg.kfg_analytics.production_qty_info
+              GROUP BY organization, category`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+
+        setProdByCatOrg(result);
+      } catch (error) {
+        console.error("Failed to fetch analytics data:", error);
+      }
+    };
+
+    fetchData();
+  }, [dateRange, metric]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `SELECT
+              product,
+              sum(qty) as qty
+              from iceberg.kfg_analytics.production_qty_info
+              GROUP BY product order by qty desc limit 10`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+
+        setTopByProdQty(result);
+      } catch (error) {
+        console.error("Failed to fetch analytics data:", error);
+      }
+    };
+
+    fetchData();
+  }, [dateRange, metric]);
+
+  useEffect(() => {
     const fetchSalesOverTime = async () => {
       try {
         const intervals = {
@@ -198,6 +268,25 @@ export default function ProductionPage() {
 
     fetchSalesOverTime();
   }, [dateRange, metric]);
+
+  // Get unique categories
+  const categories = [...new Set(prodByCatOrg.map((item) => item.cat))];
+
+  // Get unique organizations
+  const organizations = [...new Set(prodByCatOrg.map((item) => item.org))];
+
+  // console.log(categories);
+
+  // Create series data for each organization
+  const series = organizations.map((org) => ({
+    name: org,
+    type: "bar",
+    stack: "total", // Stack bars for all organizations
+    data: categories.map((cat) => {
+      const item = prodByCatOrg.find((d) => d.org === org && d.cat === cat);
+      return item ? Number(item.qty) : 0; // Use 0 if no data for org/cat
+    }),
+  }));
 
   const salesAreaChartOptions = {
     tooltip: {
@@ -335,6 +424,85 @@ export default function ProductionPage() {
       },
     ],
   };
+
+  const prodStackBarChartOptions = {
+    tooltip: {
+      trigger: "axis",
+      axisPointer: {
+        type: "shadow",
+      },
+      formatter: (params) => {
+        const category = params[0].name;
+        let tooltip = `${category}<br/>`;
+        params.forEach((param) => {
+          tooltip += `${param.seriesName}: ${param.value.toLocaleString()}<br/>`;
+        });
+        return tooltip;
+      },
+    },
+    legend: {
+      orient: "vertical",
+      left: "left",
+      data: organizations,
+    },
+    grid: {
+      left: "10%",
+      right: "4%",
+      bottom: "3%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      data: categories.length > 0 ? categories : ["No Data"],
+      axisLabel: {
+        color: "#6B7280",
+        rotate: categories.length > 5 ? 45 : 0, // Rotate labels if many categories
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "#6B7280",
+        formatter: (val) => `${val.toLocaleString()}`,
+      },
+      splitLine: {
+        lineStyle: {
+          color: "#E5E7EB",
+        },
+      },
+    },
+    color: [
+      "#3B82F6",
+      "#10B981",
+      "#F59E0B",
+      "#EF4444",
+      "#8B5CF6",
+      "#EC4899",
+      "#6EE7B7",
+    ], // Custom colors for organizations
+    series:
+      prodByCatOrg.length > 0
+        ? organizations.map((org) => ({
+            name: org,
+            type: "bar",
+            stack: "total",
+            data: categories.map((cat) => {
+              const item = prodByCatOrg.find(
+                (d) => d.org === org && d.cat === cat,
+              );
+              return item ? Number(item.qty) : 0;
+            }),
+          }))
+        : [
+            {
+              name: "No Data",
+              type: "bar",
+              stack: "total",
+              data: [0],
+            },
+          ],
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -472,6 +640,20 @@ export default function ProductionPage() {
         </Card>
         <Card className="md:col-span-2">
           <CardHeader>
+            <CardTitle>Production by category and organization</CardTitle>
+            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
+          </CardHeader>
+          <CardContent>
+            <ReactECharts
+              option={prodStackBarChartOptions}
+              notMerge={true}
+              lazyUpdate={true}
+              style={{ height: 350 }}
+            />
+          </CardContent>
+        </Card>
+        <Card className="md:col-span-2">
+          <CardHeader>
             <CardTitle>Internal Cull/Mort/Comp by Product Group</CardTitle>
             {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
           </CardHeader>
@@ -482,6 +664,53 @@ export default function ProductionPage() {
               lazyUpdate={true}
               style={{ height: 350 }}
             />
+          </CardContent>
+        </Card>
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Top 10 Products by Production</CardTitle>
+            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm text-left text-gray-500">
+                <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">
+                      #
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Product
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Quantity
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topByProdQty.length > 0 ? (
+                    topByProdQty.map((item, index) => (
+                      <tr
+                        key={item.product}
+                        className="border-b hover:bg-gray-50 transition"
+                      >
+                        <td className="px-4 py-2">{index + 1}</td>
+                        <td className="px-4 py-2">{item.product}</td>
+                        <td className="px-4 py-2">
+                          {item.qty.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="px-4 py-2" colSpan={3}>
+                        No data available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       </div>
