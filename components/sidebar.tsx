@@ -29,6 +29,7 @@ const navigation = [
   { name: "Access Control", href: "/dashboard/access", icon: Shield },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
   { name: "Sales", href: "/dashboard/sales", icon: BarChart3 },
+  { name: "Production", href: "/dashboard/production", icon: BarChart3 },
 ];
 
 export function Sidebar() {
