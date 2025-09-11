@@ -5,14 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  Users,
-  Settings,
-  Menu,
-  Home,
-  Shield,
   FileText,
+  Menu,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -22,19 +20,21 @@ import { UserProfile } from "@/components/user-profile";
 import { useSidebarContext } from "@/contexts/sidebar-context";
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { name: "Reports", href: "/dashboard/reports", icon: FileText },
-  { name: "Users", href: "/dashboard/users", icon: Users },
-  { name: "Access Control", href: "/dashboard/access", icon: Shield },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
-  { name: "Sales", href: "/dashboard/sales", icon: BarChart3 },
-  { name: "Production", href: "/dashboard/production", icon: BarChart3 },
+  {
+    name: "Analytics",
+    icon: BarChart3,
+    subItems: [
+      { name: "Sales", href: "/dashboard/sales", icon: BarChart3 },
+      { name: "Production", href: "/dashboard/production", icon: BarChart3 },
+    ],
+  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const { isCollapsed, toggle, isLoaded } = useSidebarContext();
 
   // Don't render until localStorage is loaded to prevent hydration mismatch
@@ -87,6 +87,68 @@ export function Sidebar() {
       <div className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
           const Icon = item.icon;
+          const isActive = item.href
+            ? pathname === item.href
+            : item.subItems?.some((subItem) => pathname === subItem.href);
+
+          if (item.subItems) {
+            return (
+              <div key={item.name}>
+                <button
+                  onClick={() => setAnalyticsOpen(!analyticsOpen)}
+                  className={cn(
+                    "flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 group relative",
+                    showLabels ? "space-x-3" : "justify-center",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                  title={!showLabels ? item.name : undefined}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  {showLabels && <span className="truncate">{item.name}</span>}
+                  {showLabels && (
+                    <div className="ml-auto">
+                      {analyticsOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  )}
+                  {!showLabels && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 border">
+                      {item.name}
+                    </div>
+                  )}
+                </button>
+                {analyticsOpen && showLabels && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.subItems.map((subItem) => {
+                      const SubIcon = subItem.icon;
+                      return (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          onClick={() => setOpen(false)}
+                          className={cn(
+                            "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                            pathname === subItem.href
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                          )}
+                        >
+                          <SubIcon className="h-4 w-4 flex-shrink-0 mr-3" />
+                          <span className="truncate">{subItem.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.name}
