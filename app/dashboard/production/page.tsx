@@ -19,9 +19,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import {
   TrendingUp,
   Users,
-  Calendar,
+  Calendar as CalendarLucide,
   Filter,
   Download,
   RefreshCw,
@@ -47,10 +55,16 @@ const generateTimeSeriesData = (count: number, baseValue: number) => {
 
 export default function ProductionPage() {
   // filters
-
   const [org, setOrg] = useState("all");
   const [metric, setMetric] = useState("all");
   const [orgOptions, setOrgOptions] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<{
+    from: Date | undefined;
+    to: Date | undefined;
+  }>({
+    from: new Date(new Date().setMonth(new Date().getMonth() - 12)),
+    to: new Date(),
+  });
 
   const [salesQtyAmt, setSalesQtyAmt] = useState([{ qty: 0, amt: 0 }]);
   const [avgDailyProductionQty, setAvgDailyProductionQty] = useState([
@@ -102,10 +116,34 @@ export default function ProductionPage() {
     fetchFilters();
   }, []);
 
+  // Helper function to format date for Trino queries
+  const formatDateForTrino = (date: Date | undefined) => {
+    if (!date) return "";
+    return format(date, "yyyy-MM-dd");
+  };
+
+  // Construct combined WHERE clause for organization and date filters
+  const getWhereClause = () => {
+    const conditions: string[] = [];
+
+    if (org !== "all") {
+      conditions.push(`organization = '${org}'`);
+    }
+
+    if (dateRange.from && dateRange.to) {
+      conditions.push(
+        `date BETWEEN DATE '${formatDateForTrino(dateRange.from)}' AND DATE '${formatDateForTrino(dateRange.to)}'`,
+      );
+    }
+
+    return conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -120,7 +158,7 @@ export default function ProductionPage() {
                           opening_qty,
                           ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${orgFilter}
+                        ${whereClause}
                       )
                       SELECT
                         SUM(opening_qty) AS opening
@@ -133,17 +171,18 @@ export default function ProductionPage() {
         const result = await response.json();
         setOpeningQty(result);
       } catch (error) {
-        console.error("Failed to fetch sales data:", error);
+        console.error("Failed to fetch opening quantity data:", error);
       }
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -158,7 +197,7 @@ export default function ProductionPage() {
                           closing_qty,
                           ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${orgFilter}
+                        ${whereClause}
                       )
                       SELECT
                         SUM(closing_qty) AS closing
@@ -171,17 +210,18 @@ export default function ProductionPage() {
         const result = await response.json();
         setClosingQty(result);
       } catch (error) {
-        console.error("Failed to fetch sales data:", error);
+        console.error("Failed to fetch closing quantity data:", error);
       }
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -192,7 +232,7 @@ export default function ProductionPage() {
             body: JSON.stringify({
               query: `SELECT SUM(qty)/count(distinct date(date)) as qty
                       FROM iceberg.kfg_analytics.production_qty_info
-                      ${orgFilter}`,
+                      ${whereClause}`,
             }),
           },
         );
@@ -200,17 +240,18 @@ export default function ProductionPage() {
         const result = await response.json();
         setAvgDailyProductionQty(result);
       } catch (error) {
-        console.error("Failed to fetch sales data:", error);
+        console.error("Failed to fetch average daily production data:", error);
       }
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -221,7 +262,7 @@ export default function ProductionPage() {
             body: JSON.stringify({
               query: `SELECT SUM(qty) AS qty
                       FROM iceberg.kfg_analytics.production_qty_info
-                      ${orgFilter}`,
+                      ${whereClause}`,
             }),
           },
         );
@@ -229,17 +270,18 @@ export default function ProductionPage() {
         const result = await response.json();
         setTotalProductionQty(result);
       } catch (error) {
-        console.error("Failed to fetch sales data:", error);
+        console.error("Failed to fetch total production data:", error);
       }
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -252,7 +294,7 @@ export default function ProductionPage() {
               organization as org,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
-              ${orgFilter}
+              ${whereClause}
               GROUP BY organization`,
             }),
           },
@@ -266,12 +308,13 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -284,7 +327,7 @@ export default function ProductionPage() {
               product_group as "group",
               sum(qty) as qty
               FROM iceberg.kfg_analytics.internal_qty_info
-              ${orgFilter}
+              ${whereClause}
               GROUP BY product_group`,
             }),
           },
@@ -298,12 +341,13 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -317,7 +361,7 @@ export default function ProductionPage() {
               category as cat,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
-              ${orgFilter}
+              ${whereClause}
               GROUP BY organization, category`,
             }),
           },
@@ -331,12 +375,13 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -349,7 +394,7 @@ export default function ProductionPage() {
               product,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
-              ${orgFilter}
+              ${whereClause}
               GROUP BY product ORDER BY qty DESC LIMIT 10`,
             }),
           },
@@ -363,12 +408,13 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   useEffect(() => {
     const fetchProductionOverTime = async () => {
       try {
-        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const whereClause = getWhereClause();
+
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -379,7 +425,7 @@ export default function ProductionPage() {
             body: JSON.stringify({
               query: `SELECT DATE_TRUNC('month', date) AS date, SUM(qty) AS qty
                       FROM iceberg.kfg_analytics.production_qty_info
-                      ${orgFilter}
+                      ${whereClause}
                       GROUP BY DATE_TRUNC('month', date)
                       ORDER BY DATE_TRUNC('month', date)`,
             }),
@@ -407,7 +453,7 @@ export default function ProductionPage() {
     };
 
     fetchProductionOverTime();
-  }, [metric, org]);
+  }, [metric, org, dateRange]);
 
   // Get unique categories
   const categories = [...new Set(prodByCatOrg.map((item) => item.cat))];
@@ -665,7 +711,7 @@ export default function ProductionPage() {
             </SelectContent>
           </Select>
 
-          <Select value={metric} onValueChange={setMetric}>
+          {/*<Select value={metric} onValueChange={setMetric}>
             <SelectTrigger className="w-[140px]">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue />
@@ -676,7 +722,46 @@ export default function ProductionPage() {
               <SelectItem value="users">Users</SelectItem>
               <SelectItem value="engagement">Engagement</SelectItem>
             </SelectContent>
-          </Select>
+          </Select>*/}
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-[240px] justify-start text-left font-normal"
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange.from && dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "LLL dd, y")} -{" "}
+                    {format(dateRange.to, "LLL dd, y")}
+                  </>
+                ) : (
+                  <span>Pick a date range</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange.from}
+                selected={{
+                  from: dateRange.from,
+                  to: dateRange.to,
+                }}
+                onSelect={(range) => {
+                  if (range) {
+                    setDateRange({
+                      from: range.from,
+                      to: range.to,
+                    });
+                  }
+                }}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
 
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
