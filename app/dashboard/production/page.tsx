@@ -46,11 +46,15 @@ const generateTimeSeriesData = (count: number, baseValue: number) => {
 };
 
 export default function ProductionPage() {
-  const [dateRange, setDateRange] = useState("30d");
+  // filters
+
+  const [org, setOrg] = useState("all");
   const [metric, setMetric] = useState("all");
+  const [orgOptions, setOrgOptions] = useState<string[]>([]);
+
   const [salesQtyAmt, setSalesQtyAmt] = useState([{ qty: 0, amt: 0 }]);
-  const [salesOverTime, setSalesOverTime] = useState<
-    { date: string; sales: number }[]
+  const [productionOverTime, setProductionOverTime] = useState<
+    { date: string; qty: number }[]
   >([]);
   const [prodByOrg, setProdByOrg] = useState<{ org: string; qty: number }[]>(
     [],
@@ -61,13 +65,12 @@ export default function ProductionPage() {
   const [internalByGrp, setInternalByGrp] = useState<
     { group: string; qty: number }[]
   >([]);
-
   const [topByProdQty, setTopByProdQty] = useState<
     { product: string; qty: number }[]
   >([]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchFilters = async () => {
       try {
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
@@ -77,8 +80,37 @@ export default function ProductionPage() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
+              query: `SELECT distinct(organization) as org
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+        setOrgOptions(result.map((item: { org: string }) => item.org));
+      } catch (error) {
+        console.error("Failed to fetch organization filters:", error);
+      }
+    };
+
+    fetchFilters();
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
               query: `SELECT SUM(qty) AS qty, SUM(sales) AS amt
-                      FROM iceberg.kfg_analytics.fact_sales_v1`,
+                      FROM iceberg.kfg_analytics.fact_sales_v1
+                      ${orgFilter}`,
             }),
           },
         );
@@ -86,16 +118,17 @@ export default function ProductionPage() {
         const result = await response.json();
         setSalesQtyAmt(result);
       } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
+        console.error("Failed to fetch sales data:", error);
       }
     };
 
     fetchData();
-  }, [dateRange, metric]);
+  }, [metric, org]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -107,26 +140,27 @@ export default function ProductionPage() {
               query: `SELECT
               organization as org,
               sum(qty) as qty
-              from iceberg.kfg_analytics.production_qty_info pq
+              FROM iceberg.kfg_analytics.production_qty_info
+              ${orgFilter}
               GROUP BY organization`,
             }),
           },
         );
 
         const result = await response.json();
-
         setProdByOrg(result);
       } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
+        console.error("Failed to fetch production by org data:", error);
       }
     };
 
     fetchData();
-  }, [dateRange, metric]);
+  }, [metric, org]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -138,26 +172,27 @@ export default function ProductionPage() {
               query: `SELECT
               product_group as "group",
               sum(qty) as qty
-              from iceberg.kfg_analytics.internal_qty_info qi
+              FROM iceberg.kfg_analytics.internal_qty_info
+              ${orgFilter}
               GROUP BY product_group`,
             }),
           },
         );
 
         const result = await response.json();
-
         setInternalByGrp(result);
       } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
+        console.error("Failed to fetch internal group data:", error);
       }
     };
 
     fetchData();
-  }, [dateRange, metric]);
+  }, [metric, org]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -170,26 +205,27 @@ export default function ProductionPage() {
               organization as org,
               category as cat,
               sum(qty) as qty
-              from iceberg.kfg_analytics.production_qty_info
+              FROM iceberg.kfg_analytics.production_qty_info
+              ${orgFilter}
               GROUP BY organization, category`,
             }),
           },
         );
 
         const result = await response.json();
-
         setProdByCatOrg(result);
       } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
+        console.error("Failed to fetch production by category data:", error);
       }
     };
 
     fetchData();
-  }, [dateRange, metric]);
+  }, [metric, org]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -201,35 +237,27 @@ export default function ProductionPage() {
               query: `SELECT
               product,
               sum(qty) as qty
-              from iceberg.kfg_analytics.production_qty_info
-              GROUP BY product order by qty desc limit 10`,
+              FROM iceberg.kfg_analytics.production_qty_info
+              ${orgFilter}
+              GROUP BY product ORDER BY qty DESC LIMIT 10`,
             }),
           },
         );
 
         const result = await response.json();
-
         setTopByProdQty(result);
       } catch (error) {
-        console.error("Failed to fetch analytics data:", error);
+        console.error("Failed to fetch top products data:", error);
       }
     };
 
     fetchData();
-  }, [dateRange, metric]);
+  }, [metric, org]);
 
   useEffect(() => {
-    const fetchSalesOverTime = async () => {
+    const fetchProductionOverTime = async () => {
       try {
-        const intervals = {
-          "7d": "7 days",
-          "30d": "30 days",
-          "90d": "90 days",
-          "1y": "1 year",
-        };
-        const dateFilter = `WHERE dateinvoiced >= CURRENT_DATE - INTERVAL '${
-          intervals[dateRange] || "30 days"
-        }'`;
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
         const response = await fetch(
           "http://localhost:8000/analytics/execute",
           {
@@ -238,10 +266,11 @@ export default function ProductionPage() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              query: `SELECT DATE_TRUNC('month', dateinvoiced) AS date, SUM(sales) AS sales
-                      FROM iceberg.kfg_analytics.fact_sales_v1
-                      GROUP BY DATE_TRUNC('month', dateinvoiced)
-                      ORDER BY DATE_TRUNC('month', dateinvoiced)`,
+              query: `SELECT DATE_TRUNC('month', date) AS date, SUM(qty) AS qty
+                      FROM iceberg.kfg_analytics.production_qty_info
+                      ${orgFilter}
+                      GROUP BY DATE_TRUNC('month', date)
+                      ORDER BY DATE_TRUNC('month', date)`,
             }),
           },
         );
@@ -249,25 +278,25 @@ export default function ProductionPage() {
         const result = await response.json();
         const formattedData = result
           .filter(
-            (item: { date: string; sales: number }) =>
-              item.date && item.sales != null,
+            (item: { date: string; qty: number }) =>
+              item.date && item.qty != null,
           )
-          .map((item: { date: string; sales: number }) => ({
+          .map((item: { date: string; qty: number }) => ({
             date: new Date(item.date).toISOString(),
-            sales: Number(item.sales),
+            qty: Number(item.qty),
           }))
           .sort(
             (a: { date: string }, b: { date: string }) =>
               new Date(a.date).getTime() - new Date(b.date).getTime(),
           );
-        setSalesOverTime(formattedData);
+        setProductionOverTime(formattedData);
       } catch (error) {
-        console.error("Error fetching sales over time:", error);
+        console.error("Error fetching production over time:", error);
       }
     };
 
-    fetchSalesOverTime();
-  }, [dateRange, metric]);
+    fetchProductionOverTime();
+  }, [metric, org]);
 
   // Get unique categories
   const categories = [...new Set(prodByCatOrg.map((item) => item.cat))];
@@ -275,20 +304,18 @@ export default function ProductionPage() {
   // Get unique organizations
   const organizations = [...new Set(prodByCatOrg.map((item) => item.org))];
 
-  // console.log(categories);
-
   // Create series data for each organization
   const series = organizations.map((org) => ({
     name: org,
     type: "bar",
-    stack: "total", // Stack bars for all organizations
+    stack: "total",
     data: categories.map((cat) => {
       const item = prodByCatOrg.find((d) => d.org === org && d.cat === cat);
-      return item ? Number(item.qty) : 0; // Use 0 if no data for org/cat
+      return item ? Number(item.qty) : 0;
     }),
   }));
 
-  const salesAreaChartOptions = {
+  const productionAreaChartOptions = {
     tooltip: {
       trigger: "axis",
       formatter: (params: any) => {
@@ -297,7 +324,7 @@ export default function ProductionPage() {
           month: "short",
           year: "numeric",
         });
-        return `${date}<br/>Sales: $${data.data[1].toLocaleString()}`;
+        return `${date}<br/>Production: ${data.data[1].toLocaleString()}`;
       },
     },
     xAxis: {
@@ -312,13 +339,13 @@ export default function ProductionPage() {
           });
         },
       },
-      minInterval: 30 * 24 * 60 * 60 * 1000, // Approx. 1 month
+      minInterval: 30 * 24 * 60 * 60 * 1000,
     },
     yAxis: {
       type: "value",
       axisLabel: {
         color: "#6B7280",
-        formatter: (val: number) => `$${val.toLocaleString()}`,
+        formatter: (val: number) => `${val.toLocaleString()}`,
       },
       splitLine: {
         lineStyle: {
@@ -334,7 +361,7 @@ export default function ProductionPage() {
     },
     series: [
       {
-        name: "Sales",
+        name: "Production",
         type: "line",
         smooth: true,
         areaStyle: {
@@ -347,10 +374,10 @@ export default function ProductionPage() {
           color: "#3B82F6",
         },
         data:
-          salesOverTime.length > 0
-            ? salesOverTime.map((point) => [
+          productionOverTime.length > 0
+            ? productionOverTime.map((point) => [
                 new Date(point.date).getTime(),
-                point.sales,
+                point.qty,
               ])
             : generateTimeSeriesData(12, 10000),
       },
@@ -377,9 +404,7 @@ export default function ProductionPage() {
                 name: item.org,
                 value: Number(item.qty),
               }))
-            : [
-                { name: "No Data", value: 0 }, // Fallback for empty data
-              ],
+            : [{ name: "No Data", value: 0 }],
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
@@ -411,9 +436,7 @@ export default function ProductionPage() {
                 name: item.group,
                 value: Number(item.qty),
               }))
-            : [
-                { name: "No Data", value: 0 }, // Fallback for empty data
-              ],
+            : [{ name: "No Data", value: 0 }],
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
@@ -456,7 +479,7 @@ export default function ProductionPage() {
       data: categories.length > 0 ? categories : ["No Data"],
       axisLabel: {
         color: "#6B7280",
-        rotate: categories.length > 5 ? 45 : 0, // Rotate labels if many categories
+        rotate: categories.length > 5 ? 45 : 0,
       },
     },
     yAxis: {
@@ -479,7 +502,7 @@ export default function ProductionPage() {
       "#8B5CF6",
       "#EC4899",
       "#6EE7B7",
-    ], // Custom colors for organizations
+    ],
     series:
       prodByCatOrg.length > 0
         ? organizations.map((org) => ({
@@ -516,16 +539,18 @@ export default function ProductionPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={dateRange} onValueChange={setDateRange}>
+          <Select value={org} onValueChange={setOrg}>
             <SelectTrigger className="w-[140px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              <SelectValue />
+              <Users className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="All Organizations" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="1y">Last year</SelectItem>
+              <SelectItem value="all">All Organizations</SelectItem>
+              {orgOptions.map((orgOption) => (
+                <SelectItem key={orgOption} value={orgOption}>
+                  {orgOption}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -612,12 +637,14 @@ export default function ProductionPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Monthly Sales</CardTitle>
-            <CardDescription>Monthly sale trends over time</CardDescription>
+            <CardTitle>Monthly Production</CardTitle>
+            <CardDescription>
+              Monthly production trends over time
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={salesAreaChartOptions}
+              option={productionAreaChartOptions}
               notMerge={true}
               lazyUpdate={true}
               style={{ height: 350 }}
@@ -627,7 +654,6 @@ export default function ProductionPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Production by organization</CardTitle>
-            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
           </CardHeader>
           <CardContent>
             <ReactECharts
@@ -641,7 +667,6 @@ export default function ProductionPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Production by category and organization</CardTitle>
-            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
           </CardHeader>
           <CardContent>
             <ReactECharts
@@ -655,7 +680,6 @@ export default function ProductionPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Internal Cull/Mort/Comp by Product Group</CardTitle>
-            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
           </CardHeader>
           <CardContent>
             <ReactECharts
@@ -669,7 +693,6 @@ export default function ProductionPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Top 10 Products by Production</CardTitle>
-            {/*<CardDescription>Monthly sale trends over time</CardDescription>*/}
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
