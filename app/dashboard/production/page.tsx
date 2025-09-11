@@ -53,6 +53,12 @@ export default function ProductionPage() {
   const [orgOptions, setOrgOptions] = useState<string[]>([]);
 
   const [salesQtyAmt, setSalesQtyAmt] = useState([{ qty: 0, amt: 0 }]);
+  const [avgDailyProductionQty, setAvgDailyProductionQty] = useState([
+    { qty: 0 },
+  ]);
+  const [totalProductionQty, setTotalProductionQty] = useState([{ qty: 0 }]);
+  const [opneningQty, setOpeningQty] = useState([{ opening: 0 }]);
+  const [closingQty, setClosingQty] = useState([{ closing: 0 }]);
   const [productionOverTime, setProductionOverTime] = useState<
     { date: string; qty: number }[]
   >([]);
@@ -108,15 +114,120 @@ export default function ProductionPage() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              query: `SELECT SUM(qty) AS qty, SUM(sales) AS amt
-                      FROM iceberg.kfg_analytics.fact_sales_v1
+              query: `WITH LatestRecords AS (
+                        SELECT
+                          organization,
+                          opening_qty,
+                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+                        FROM iceberg.kfg_analytics.opening_and_closing_qty_info
+                        ${orgFilter}
+                      )
+                      SELECT
+                        SUM(opening_qty) AS opening
+                      FROM LatestRecords
+                      WHERE rn = 1`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+        setOpeningQty(result);
+      } catch (error) {
+        console.error("Failed to fetch sales data:", error);
+      }
+    };
+
+    fetchData();
+  }, [metric, org]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `WITH LatestRecords AS (
+                        SELECT
+                          organization,
+                          closing_qty,
+                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+                        FROM iceberg.kfg_analytics.opening_and_closing_qty_info
+                        ${orgFilter}
+                      )
+                      SELECT
+                        SUM(closing_qty) AS closing
+                      FROM LatestRecords
+                      WHERE rn = 1`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+        setClosingQty(result);
+      } catch (error) {
+        console.error("Failed to fetch sales data:", error);
+      }
+    };
+
+    fetchData();
+  }, [metric, org]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `SELECT SUM(qty)/count(distinct date(date)) as qty
+                      FROM iceberg.kfg_analytics.production_qty_info
                       ${orgFilter}`,
             }),
           },
         );
 
         const result = await response.json();
-        setSalesQtyAmt(result);
+        setAvgDailyProductionQty(result);
+      } catch (error) {
+        console.error("Failed to fetch sales data:", error);
+      }
+    };
+
+    fetchData();
+  }, [metric, org]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const orgFilter = org !== "all" ? `WHERE organization = '${org}'` : "";
+        const response = await fetch(
+          "http://localhost:8000/analytics/execute",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: `SELECT SUM(qty) AS qty
+                      FROM iceberg.kfg_analytics.production_qty_info
+                      ${orgFilter}`,
+            }),
+          },
+        );
+
+        const result = await response.json();
+        setTotalProductionQty(result);
       } catch (error) {
         console.error("Failed to fetch sales data:", error);
       }
@@ -590,7 +701,7 @@ export default function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].qty}</div>
+            <div className="text-2xl font-bold">{opneningQty[0].opening}</div>
           </CardContent>
         </Card>
         <Card>
@@ -603,7 +714,7 @@ export default function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].amt}</div>
+            <div className="text-2xl font-bold">{closingQty[0].closing}</div>
           </CardContent>
         </Card>
         <Card>
@@ -616,7 +727,9 @@ export default function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].amt}</div>
+            <div className="text-2xl font-bold">
+              {totalProductionQty[0].qty}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -629,7 +742,9 @@ export default function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].amt}</div>
+            <div className="text-2xl font-bold">
+              {avgDailyProductionQty[0].qty}
+            </div>
           </CardContent>
         </Card>
       </div>
