@@ -38,6 +38,8 @@ import {
   Activity,
 } from "lucide-react";
 
+import api from "@/lib/api";
+
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
 const generateTimeSeriesData = (count: number, baseValue: number) => {
@@ -92,21 +94,14 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT distinct(organization) as org
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT distinct(organization) as org
                       FROM iceberg.kfg_analytics.production_qty_info`,
-            }),
-          },
+          }),
         );
-
-        const result = await response.json();
+        const result = response.data;
         setOrgOptions(result.map((item: { org: string }) => item.org));
       } catch (error) {
         console.error("Failed to fetch organization filters:", error);
@@ -144,15 +139,10 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `WITH LatestRecords AS (
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `WITH LatestRecords AS (
                         SELECT
                           organization,
                           opening_qty,
@@ -164,11 +154,10 @@ export default function ProductionPage() {
                         SUM(opening_qty) AS opening
                       FROM LatestRecords
                       WHERE rn = 1`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setOpeningQty(result);
       } catch (error) {
         console.error("Failed to fetch opening quantity data:", error);
@@ -183,15 +172,10 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `WITH LatestRecords AS (
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `WITH LatestRecords AS (
                         SELECT
                           organization,
                           closing_qty,
@@ -203,11 +187,10 @@ export default function ProductionPage() {
                         SUM(closing_qty) AS closing
                       FROM LatestRecords
                       WHERE rn = 1`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = await response.data;
         setClosingQty(result);
       } catch (error) {
         console.error("Failed to fetch closing quantity data:", error);
@@ -222,22 +205,16 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT SUM(qty)/count(distinct date(date)) as qty
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT SUM(qty)/count(distinct date(date)) as qty
                       FROM iceberg.kfg_analytics.production_qty_info
                       ${whereClause}`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setAvgDailyProductionQty(result);
       } catch (error) {
         console.error("Failed to fetch average daily production data:", error);
@@ -252,22 +229,16 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT SUM(qty) AS qty
+        const response = await api.post(
+          "analytics/execute",
+          JSON.stringify({
+            query: `SELECT SUM(qty) AS qty
                       FROM iceberg.kfg_analytics.production_qty_info
                       ${whereClause}`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setTotalProductionQty(result);
       } catch (error) {
         console.error("Failed to fetch total production data:", error);
@@ -282,25 +253,19 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT
               organization as org,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
               ${whereClause}
               GROUP BY organization`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setProdByOrg(result);
       } catch (error) {
         console.error("Failed to fetch production by org data:", error);
@@ -315,25 +280,19 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT
               product_group as "group",
               sum(qty) as qty
               FROM iceberg.kfg_analytics.internal_qty_info
               ${whereClause}
               GROUP BY product_group`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setInternalByGrp(result);
       } catch (error) {
         console.error("Failed to fetch internal group data:", error);
@@ -348,26 +307,20 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT
               organization as org,
               category as cat,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
               ${whereClause}
               GROUP BY organization, category`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setProdByCatOrg(result);
       } catch (error) {
         console.error("Failed to fetch production by category data:", error);
@@ -382,25 +335,19 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT
               product,
               sum(qty) as qty
               FROM iceberg.kfg_analytics.production_qty_info
               ${whereClause}
               GROUP BY product ORDER BY qty DESC LIMIT 10`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         setTopByProdQty(result);
       } catch (error) {
         console.error("Failed to fetch top products data:", error);
@@ -415,24 +362,18 @@ export default function ProductionPage() {
       try {
         const whereClause = getWhereClause();
 
-        const response = await fetch(
-          "http://localhost:8000/analytics/execute",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              query: `SELECT DATE_TRUNC('month', date) AS date, SUM(qty) AS qty
+        const response = await api.post(
+          "/analytics/execute",
+          JSON.stringify({
+            query: `SELECT DATE_TRUNC('month', date) AS date, SUM(qty) AS qty
                       FROM iceberg.kfg_analytics.production_qty_info
                       ${whereClause}
                       GROUP BY DATE_TRUNC('month', date)
                       ORDER BY DATE_TRUNC('month', date)`,
-            }),
-          },
+          }),
         );
 
-        const result = await response.json();
+        const result = response.data;
         const formattedData = result
           .filter(
             (item: { date: string; qty: number }) =>
@@ -454,6 +395,39 @@ export default function ProductionPage() {
 
     fetchProductionOverTime();
   }, [metric, org, dateRange]);
+
+  async function download_report() {
+    try {
+      // Make a GET request to the FastAPI endpoint
+      const response = await api.get("/reports/production/download/1", {
+        responseType: "blob", // Important: Ensures binary data is handled correctly
+      });
+
+      // Create a Blob from the response data
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // Create a temporary URL for the Blob
+      const url = window.URL.createObjectURL(blob);
+
+      // Create a temporary link element to trigger the download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "output.xlsx"; // File name for download
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      console.log("File downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading the report:", error);
+      throw error; // Handle error as needed (e.g., show a user notification)
+    }
+  }
 
   // Get unique categories
   const categories = [...new Set(prodByCatOrg.map((item) => item.cat))];
@@ -763,7 +737,7 @@ export default function ProductionPage() {
             </PopoverContent>
           </Popover>
 
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={download_report}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
