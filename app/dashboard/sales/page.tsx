@@ -57,7 +57,7 @@ export default function SalesPage() {
     const fetchData = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8000/analytics/execute",
+          "http://localhost:8000/api/analytics/execute",
           {
             method: "POST",
             headers: {
@@ -71,6 +71,7 @@ export default function SalesPage() {
         );
 
         const result = await response.json();
+        console.log("Fetched analytics data:", result);
         setSalesQtyAmt(result);
       } catch (error) {
         console.error("Failed to fetch analytics data:", error);
@@ -83,17 +84,8 @@ export default function SalesPage() {
   useEffect(() => {
     const fetchSalesOverTime = async () => {
       try {
-        const intervals = {
-          "7d": "7 days",
-          "30d": "30 days",
-          "90d": "90 days",
-          "1y": "1 year",
-        };
-        const dateFilter = `WHERE dateinvoiced >= CURRENT_DATE - INTERVAL '${
-          intervals[dateRange] || "30 days"
-        }'`;
         const response = await fetch(
-          "http://localhost:8000/analytics/execute",
+          "http://localhost:8000/api/analytics/execute",
           {
             method: "POST",
             headers: {
@@ -260,7 +252,7 @@ export default function SalesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].qty}</div>
+            <div className="text-2xl font-bold">{salesQtyAmt[0]?.qty ?? 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -271,7 +263,7 @@ export default function SalesPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{salesQtyAmt[0].amt}</div>
+            <div className="text-2xl font-bold">{salesQtyAmt[0]?.qty ?? 0}</div>
           </CardContent>
         </Card>
       </div>
