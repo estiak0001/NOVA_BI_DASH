@@ -477,9 +477,25 @@ export default function ProductionPage() {
 
   async function download_report() {
     try {
-      const response = await api.get("/reports/production/download/1", {
-        responseType: "blob",
-      });
+      // Construct query parameters from filter states
+      const params = new URLSearchParams();
+      if (org !== "all") params.append("org", org);
+      if (warehouse !== "all") params.append("warehouse", warehouse);
+      if (locator !== "all") params.append("locator", locator);
+      if (product !== "all") params.append("product", product);
+      if (category !== "all") params.append("category", category);
+      if (productGroup !== "all") params.append("product_group", productGroup);
+      if (dateRange.from)
+        params.append("date_from", formatDateForTrino(dateRange.from));
+      if (dateRange.to)
+        params.append("date_to", formatDateForTrino(dateRange.to));
+
+      const response = await api.get(
+        `/reports/production/download/1?${params.toString()}`,
+        {
+          responseType: "blob",
+        },
+      );
 
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -488,7 +504,7 @@ export default function ProductionPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "output.xlsx";
+      link.download = "production_report.xlsx";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
