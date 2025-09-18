@@ -461,9 +461,28 @@ export default function SalesPage() {
   // Download report function
   async function downloadReport() {
     try {
-      const response = await api.get("/reports/sales/download/1", {
-        responseType: "blob",
-      });
+      // Construct query parameters from the current filter state
+      const params = new URLSearchParams();
+      if (salesOffice !== "all") params.append("sales_office", salesOffice);
+      if (region !== "all") params.append("region", region);
+      if (territory !== "all") params.append("territory", territory);
+      if (product !== "all") params.append("product", product);
+      if (category !== "all") params.append("category", category);
+      if (group !== "all") params.append("group", group);
+      if (dateRange.from)
+        params.append("date_from", formatDateForTrino(dateRange.from));
+      if (dateRange.to)
+        params.append("date_to", formatDateForTrino(dateRange.to));
+      params.append("metric", metric);
+
+      // Make the API call with query parameters
+      const response = await api.get(
+        `/reports/sales/download/1?${params.toString()}`,
+        {
+          responseType: "blob",
+        },
+      );
+
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
