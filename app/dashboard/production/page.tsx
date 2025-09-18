@@ -183,7 +183,9 @@ export default function ProductionPage() {
   };
 
   // Construct combined WHERE clause for all filters
-  const getWhereClause = () => {
+  const getWhereClause = (
+    queryType: "default" | "opening" | "closing" = "default",
+  ) => {
     const conditions: string[] = [];
 
     if (org !== "all") {
@@ -204,7 +206,13 @@ export default function ProductionPage() {
     if (productGroup !== "all") {
       conditions.push(`product_group = '${productGroup}'`);
     }
-    if (dateRange.from && dateRange.to) {
+    if (queryType === "opening" && dateRange.from) {
+      conditions.push(`date < DATE '${formatDateForTrino(dateRange.from)}'`);
+    }
+    if (queryType === "closing" && dateRange.to) {
+      conditions.push(`date <= DATE '${formatDateForTrino(dateRange.to)}'`);
+    }
+    if (queryType === "default" && dateRange.from && dateRange.to) {
       conditions.push(
         `date BETWEEN DATE '${formatDateForTrino(dateRange.from)}' AND DATE '${formatDateForTrino(dateRange.to)}'`,
       );
@@ -216,23 +224,15 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("opening");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          opening_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: ` SELECT
+                          sum(qty) as opening
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(opening_qty) AS opening
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
@@ -249,23 +249,15 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("closing");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          closing_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: `SELECT
+                          sum(qty) as closing
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(closing_qty) AS closing
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
