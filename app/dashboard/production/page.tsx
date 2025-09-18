@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -26,17 +25,7 @@ import {
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import {
-  TrendingUp,
-  Users,
-  Calendar as CalendarLucide,
-  Filter,
-  Download,
-  RefreshCw,
-  BarChart3,
-  PieChart,
-  Activity,
-} from "lucide-react";
+import { Download, RefreshCw, BarChart3, PieChart } from "lucide-react";
 
 import api from "@/lib/api";
 
@@ -58,8 +47,17 @@ const generateTimeSeriesData = (count: number, baseValue: number) => {
 export default function ProductionPage() {
   // filters
   const [org, setOrg] = useState("all");
-  const [metric, setMetric] = useState("all");
+  const [warehouse, setWarehouse] = useState("all");
+  const [locator, setLocator] = useState("all");
+  const [product, setProduct] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [productGroup, setProductGroup] = useState("all");
   const [orgOptions, setOrgOptions] = useState<string[]>([]);
+  const [warehouseOptions, setWarehouseOptions] = useState<string[]>([]);
+  const [locatorOptions, setLocatorOptions] = useState<string[]>([]);
+  const [productOptions, setProductOptions] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [productGroupOptions, setProductGroupOptions] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
     to: Date | undefined;
@@ -73,7 +71,7 @@ export default function ProductionPage() {
     { qty: 0 },
   ]);
   const [totalProductionQty, setTotalProductionQty] = useState([{ qty: 0 }]);
-  const [opneningQty, setOpeningQty] = useState([{ opening: 0 }]);
+  const [openingQty, setOpeningQty] = useState([{ opening: 0 }]);
   const [closingQty, setClosingQty] = useState([{ closing: 0 }]);
   const [productionOverTime, setProductionOverTime] = useState<
     { date: string; qty: number }[]
@@ -94,17 +92,84 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const response = await api.post(
-          "/analytics/execute",
-          JSON.stringify({
-            query: `SELECT distinct(organization) as org
+        const [
+          orgResponse,
+          warehouseResponse,
+          locatorResponse,
+          productResponse,
+          categoryResponse,
+          productGroupResponse,
+        ] = await Promise.all([
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(organization) as org
                       FROM iceberg.kfg_analytics.production_qty_info`,
-          }),
+            }),
+          ),
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(warehouse_name) as warehouse
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          ),
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(locator_name) as locator
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          ),
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(product) as product
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          ),
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(category) as category
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          ),
+          api.post(
+            "/analytics/execute",
+            JSON.stringify({
+              query: `SELECT distinct(product_group) as product_group
+                      FROM iceberg.kfg_analytics.production_qty_info`,
+            }),
+          ),
+        ]);
+
+        setOrgOptions(
+          orgResponse.data.map((item: { org: string }) => item.org),
         );
-        const result = response.data;
-        setOrgOptions(result.map((item: { org: string }) => item.org));
+        setWarehouseOptions(
+          warehouseResponse.data.map(
+            (item: { warehouse: string }) => item.warehouse,
+          ),
+        );
+        setLocatorOptions(
+          locatorResponse.data.map((item: { locator: string }) => item.locator),
+        );
+        setProductOptions(
+          productResponse.data.map((item: { product: string }) => item.product),
+        );
+        setCategoryOptions(
+          categoryResponse.data.map(
+            (item: { category: string }) => item.category,
+          ),
+        );
+        setProductGroupOptions(
+          productGroupResponse.data.map(
+            (item: { product_group: string }) => item.product_group,
+          ),
+        );
       } catch (error) {
-        console.error("Failed to fetch organization filters:", error);
+        console.error("Failed to fetch filters:", error);
       }
     };
 
@@ -117,15 +182,37 @@ export default function ProductionPage() {
     return format(date, "yyyy-MM-dd");
   };
 
-  // Construct combined WHERE clause for organization and date filters
-  const getWhereClause = () => {
+  // Construct combined WHERE clause for all filters
+  const getWhereClause = (
+    queryType: "default" | "opening" | "closing" = "default",
+  ) => {
     const conditions: string[] = [];
 
     if (org !== "all") {
       conditions.push(`organization = '${org}'`);
     }
-
-    if (dateRange.from && dateRange.to) {
+    if (warehouse !== "all") {
+      conditions.push(`warehouse_name = '${warehouse}'`);
+    }
+    if (locator !== "all") {
+      conditions.push(`locator_name = '${locator}'`);
+    }
+    if (product !== "all") {
+      conditions.push(`product = '${product}'`);
+    }
+    if (category !== "all") {
+      conditions.push(`category = '${category}'`);
+    }
+    if (productGroup !== "all") {
+      conditions.push(`product_group = '${productGroup}'`);
+    }
+    if (queryType === "opening" && dateRange.from) {
+      conditions.push(`date < DATE '${formatDateForTrino(dateRange.from)}'`);
+    }
+    if (queryType === "closing" && dateRange.to) {
+      conditions.push(`date <= DATE '${formatDateForTrino(dateRange.to)}'`);
+    }
+    if (queryType === "default" && dateRange.from && dateRange.to) {
       conditions.push(
         `date BETWEEN DATE '${formatDateForTrino(dateRange.from)}' AND DATE '${formatDateForTrino(dateRange.to)}'`,
       );
@@ -137,23 +224,15 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("opening");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          opening_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: ` SELECT
+                          sum(qty) as opening
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(opening_qty) AS opening
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
@@ -165,32 +244,24 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("closing");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          closing_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: `SELECT
+                          sum(qty) as closing
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(closing_qty) AS closing
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
-        const result = await response.data;
+        const result = response.data;
         setClosingQty(result);
       } catch (error) {
         console.error("Failed to fetch closing quantity data:", error);
@@ -198,7 +269,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -222,7 +293,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -230,7 +301,7 @@ export default function ProductionPage() {
         const whereClause = getWhereClause();
 
         const response = await api.post(
-          "analytics/execute",
+          "/analytics/execute",
           JSON.stringify({
             query: `SELECT SUM(qty) AS qty
                       FROM iceberg.kfg_analytics.production_qty_info
@@ -246,7 +317,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -273,7 +344,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -300,7 +371,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -328,7 +399,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -355,7 +426,7 @@ export default function ProductionPage() {
     };
 
     fetchData();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   useEffect(() => {
     const fetchProductionOverTime = async () => {
@@ -394,48 +465,53 @@ export default function ProductionPage() {
     };
 
     fetchProductionOverTime();
-  }, [metric, org, dateRange]);
+  }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
   async function download_report() {
     try {
-      // Make a GET request to the FastAPI endpoint
-      const response = await api.get("/reports/production/download/1", {
-        responseType: "blob", // Important: Ensures binary data is handled correctly
-      });
+      // Construct query parameters from filter states
+      const params = new URLSearchParams();
+      if (org !== "all") params.append("org", org);
+      if (warehouse !== "all") params.append("warehouse", warehouse);
+      if (locator !== "all") params.append("locator", locator);
+      if (product !== "all") params.append("product", product);
+      if (category !== "all") params.append("category", category);
+      if (productGroup !== "all") params.append("product_group", productGroup);
+      if (dateRange.from)
+        params.append("date_from", formatDateForTrino(dateRange.from));
+      if (dateRange.to)
+        params.append("date_to", formatDateForTrino(dateRange.to));
 
-      // Create a Blob from the response data
+      const response = await api.get(
+        `/reports/production/download/1?${params.toString()}`,
+        {
+          responseType: "blob",
+        },
+      );
+
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      // Create a temporary URL for the Blob
       const url = window.URL.createObjectURL(blob);
-
-      // Create a temporary link element to trigger the download
       const link = document.createElement("a");
       link.href = url;
-      link.download = "output.xlsx"; // File name for download
+      link.download = "production_report.xlsx";
       document.body.appendChild(link);
       link.click();
-
-      // Clean up
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
       console.log("File downloaded successfully");
     } catch (error) {
       console.error("Error downloading the report:", error);
-      throw error; // Handle error as needed (e.g., show a user notification)
+      throw error;
     }
   }
 
-  // Get unique categories
   const categories = [...new Set(prodByCatOrg.map((item) => item.cat))];
-
-  // Get unique organizations
   const organizations = [...new Set(prodByCatOrg.map((item) => item.org))];
 
-  // Create series data for each organization
   const series = organizations.map((org) => ({
     name: org,
     type: "bar",
@@ -668,11 +744,25 @@ export default function ProductionPage() {
             Comprehensive production analysis and insights
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={download_report}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Organization
+          </label>
           <Select value={org} onValueChange={setOrg}>
             <SelectTrigger className="w-[140px]">
-              <Users className="h-4 w-4 mr-2" />
               <SelectValue placeholder="All Organizations" />
             </SelectTrigger>
             <SelectContent>
@@ -684,20 +774,107 @@ export default function ProductionPage() {
               ))}
             </SelectContent>
           </Select>
+        </div>
 
-          {/*<Select value={metric} onValueChange={setMetric}>
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Warehouse
+          </label>
+          <Select value={warehouse} onValueChange={setWarehouse}>
             <SelectTrigger className="w-[140px]">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue />
+              <SelectValue placeholder="All Warehouses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Metrics</SelectItem>
-              <SelectItem value="revenue">Revenue</SelectItem>
-              <SelectItem value="users">Users</SelectItem>
-              <SelectItem value="engagement">Engagement</SelectItem>
+              <SelectItem value="all">All Warehouses</SelectItem>
+              {warehouseOptions.map((warehouseOption) => (
+                <SelectItem key={warehouseOption} value={warehouseOption}>
+                  {warehouseOption}
+                </SelectItem>
+              ))}
             </SelectContent>
-          </Select>*/}
+          </Select>
+        </div>
 
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Locator
+          </label>
+          <Select value={locator} onValueChange={setLocator}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Locators" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locators</SelectItem>
+              {locatorOptions.map((locatorOption) => (
+                <SelectItem key={locatorOption} value={locatorOption}>
+                  {locatorOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Product
+          </label>
+          <Select value={product} onValueChange={setProduct}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Products" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Products</SelectItem>
+              {productOptions.map((productOption) => (
+                <SelectItem key={productOption} value={productOption}>
+                  {productOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Category
+          </label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categoryOptions.map((categoryOption) => (
+                <SelectItem key={categoryOption} value={categoryOption}>
+                  {categoryOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Product Group
+          </label>
+          <Select value={productGroup} onValueChange={setProductGroup}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Product Groups" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Product Groups</SelectItem>
+              {productGroupOptions.map((productGroupOption) => (
+                <SelectItem key={productGroupOption} value={productGroupOption}>
+                  {productGroupOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-medium text-gray-700 mb-1">
+            Date Range
+          </label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -736,16 +913,6 @@ export default function ProductionPage() {
               />
             </PopoverContent>
           </Popover>
-
-          <Button variant="outline" size="sm" onClick={download_report}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-
-          <Button variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
         </div>
       </div>
 
@@ -760,7 +927,7 @@ export default function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{opneningQty[0].opening}</div>
+            <div className="text-2xl font-bold">{openingQty[0].opening}</div>
           </CardContent>
         </Card>
         <Card>
