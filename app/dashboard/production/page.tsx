@@ -183,7 +183,9 @@ export default function ProductionPage() {
   };
 
   // Construct combined WHERE clause for all filters
-  const getWhereClause = () => {
+  const getWhereClause = (
+    queryType: "default" | "opening" | "closing" = "default",
+  ) => {
     const conditions: string[] = [];
 
     if (org !== "all") {
@@ -204,7 +206,13 @@ export default function ProductionPage() {
     if (productGroup !== "all") {
       conditions.push(`product_group = '${productGroup}'`);
     }
-    if (dateRange.from && dateRange.to) {
+    if (queryType === "opening" && dateRange.from) {
+      conditions.push(`date < DATE '${formatDateForTrino(dateRange.from)}'`);
+    }
+    if (queryType === "closing" && dateRange.to) {
+      conditions.push(`date <= DATE '${formatDateForTrino(dateRange.to)}'`);
+    }
+    if (queryType === "default" && dateRange.from && dateRange.to) {
       conditions.push(
         `date BETWEEN DATE '${formatDateForTrino(dateRange.from)}' AND DATE '${formatDateForTrino(dateRange.to)}'`,
       );
@@ -216,23 +224,15 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("opening");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          opening_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: ` SELECT
+                          sum(qty) as opening
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(opening_qty) AS opening
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
@@ -249,23 +249,15 @@ export default function ProductionPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const whereClause = getWhereClause();
+        const whereClause = getWhereClause("closing");
 
         const response = await api.post(
           "/analytics/execute",
           JSON.stringify({
-            query: `WITH LatestRecords AS (
-                        SELECT
-                          organization,
-                          closing_qty,
-                          ROW_NUMBER() OVER (PARTITION BY organization ORDER BY date DESC) AS rn
+            query: `SELECT
+                          sum(qty) as closing
                         FROM iceberg.kfg_analytics.opening_and_closing_qty_info
-                        ${whereClause}
-                      )
-                      SELECT
-                        SUM(closing_qty) AS closing
-                      FROM LatestRecords
-                      WHERE rn = 1`,
+                        ${whereClause}`,
           }),
         );
 
@@ -477,9 +469,25 @@ export default function ProductionPage() {
 
   async function download_report() {
     try {
-      const response = await api.get("/reports/production/download/1", {
-        responseType: "blob",
-      });
+      // Construct query parameters from filter states
+      const params = new URLSearchParams();
+      if (org !== "all") params.append("org", org);
+      if (warehouse !== "all") params.append("warehouse", warehouse);
+      if (locator !== "all") params.append("locator", locator);
+      if (product !== "all") params.append("product", product);
+      if (category !== "all") params.append("category", category);
+      if (productGroup !== "all") params.append("product_group", productGroup);
+      if (dateRange.from)
+        params.append("date_from", formatDateForTrino(dateRange.from));
+      if (dateRange.to)
+        params.append("date_to", formatDateForTrino(dateRange.to));
+
+      const response = await api.get(
+        `/reports/production/download/1?${params.toString()}`,
+        {
+          responseType: "blob",
+        },
+      );
 
       const blob = new Blob([response.data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -488,7 +496,7 @@ export default function ProductionPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "output.xlsx";
+      link.download = "production_report.xlsx";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
