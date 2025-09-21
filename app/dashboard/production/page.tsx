@@ -602,8 +602,24 @@ export default function ProductionPage() {
       formatter: "{a} <br/>{b}: {c} ({d}%)",
     },
     legend: {
-      orient: "vertical",
-      left: "left",
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     series: [
       {
@@ -634,8 +650,24 @@ export default function ProductionPage() {
       formatter: "{a} <br/>{b}: {c} ({d}%)",
     },
     legend: {
-      orient: "vertical",
-      left: "left",
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     series: [
       {
@@ -676,14 +708,29 @@ export default function ProductionPage() {
       },
     },
     legend: {
-      orient: "vertical",
-      left: "left",
-      data: organizations,
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     grid: {
-      left: "10%",
+      left: "4%",
       right: "4%",
-      bottom: "3%",
+      bottom: "10%",
       containLabel: true,
     },
     xAxis: {
@@ -1026,7 +1073,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Production by organization</CardTitle>
           </CardHeader>
@@ -1039,7 +1086,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Production by category and organization</CardTitle>
           </CardHeader>
@@ -1052,7 +1099,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Internal Cull/Mort/Comp by Product Group</CardTitle>
           </CardHeader>
@@ -1065,7 +1112,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Top 10 Products by Production</CardTitle>
           </CardHeader>
