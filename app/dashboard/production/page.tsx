@@ -467,7 +467,7 @@ export default function ProductionPage() {
     fetchProductionOverTime();
   }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
-  async function download_report() {
+  async function download_report(reportType: "default" | "monthly" | "weekly") {
     try {
       // Construct query parameters from filter states
       const params = new URLSearchParams();
@@ -482,8 +482,13 @@ export default function ProductionPage() {
       if (dateRange.to)
         params.append("date_to", formatDateForTrino(dateRange.to));
 
+      // Determine report endpoint based on reportType
+      const reportId =
+        reportType === "default" ? "1" : reportType === "monthly" ? "2" : "3";
+      const reportName = `production_report_${reportType}.xlsx`;
+
       const response = await api.get(
-        `/reports/production/download/1?${params.toString()}`,
+        `/reports/production/download/${reportId}?${params.toString()}`,
         {
           responseType: "blob",
         },
@@ -496,15 +501,15 @@ export default function ProductionPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "production_report.xlsx";
+      link.download = reportName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      console.log("File downloaded successfully");
+      console.log(`File ${reportName} downloaded successfully`);
     } catch (error) {
-      console.error("Error downloading the report:", error);
+      console.error(`Error downloading the ${reportType} report:`, error);
       throw error;
     }
   }
@@ -745,10 +750,39 @@ export default function ProductionPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={download_report}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48">
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("default")}
+                >
+                  Default Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("monthly")}
+                >
+                  Monthly Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("weekly")}
+                >
+                  Weekly Report
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh

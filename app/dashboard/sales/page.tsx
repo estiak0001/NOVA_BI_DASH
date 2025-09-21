@@ -25,7 +25,7 @@ import {
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { Download, RefreshCw, BarChart3 } from "lucide-react";
+import { Download, RefreshCw, TrendingUp } from "lucide-react";
 
 import api from "@/lib/api";
 
@@ -52,7 +52,7 @@ export default function SalesPage() {
   const [product, setProduct] = useState("all");
   const [category, setCategory] = useState("all");
   const [group, setGroup] = useState("all");
-  const [metric, setMetric] = useState<"qty" | "sales">("qty"); // New metric filter
+  const [metric, setMetric] = useState<"qty" | "sales">("qty");
   const [salesOfficeOptions, setSalesOfficeOptions] = useState<string[]>([]);
   const [regionOptions, setRegionOptions] = useState<string[]>([]);
   const [territoryOptions, setTerritoryOptions] = useState<string[]>([]);
@@ -459,7 +459,7 @@ export default function SalesPage() {
   ]);
 
   // Download report function
-  async function downloadReport() {
+  async function downloadReport(reportType: "default" | "monthly" | "weekly") {
     try {
       // Construct query parameters from the current filter state
       const params = new URLSearchParams();
@@ -475,9 +475,14 @@ export default function SalesPage() {
         params.append("date_to", formatDateForTrino(dateRange.to));
       params.append("metric", metric);
 
+      // Determine report endpoint and filename based on report type
+      const reportId =
+        reportType === "default" ? "1" : reportType === "monthly" ? "2" : "3";
+      const reportName = `sales_report_${reportType}.xlsx`;
+
       // Make the API call with query parameters
       const response = await api.get(
-        `/reports/sales/download/1?${params.toString()}`,
+        `/reports/sales/download/${reportId}?${params.toString()}`,
         {
           responseType: "blob",
         },
@@ -489,13 +494,13 @@ export default function SalesPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "sales_report.xlsx";
+      link.download = reportName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error downloading the report:", error);
+      console.error(`Error downloading the ${reportType} report:`, error);
     }
   }
 
@@ -507,7 +512,7 @@ export default function SalesPage() {
     ...new Set(salesByCategoryOffice.map((item) => item.sales_office)),
   ];
 
-  const salesAreaChartOptions = {
+  const salesSplineChartOptions = {
     tooltip: {
       trigger: "axis",
       formatter: (params: any) => {
@@ -523,7 +528,7 @@ export default function SalesPage() {
       type: "time",
       boundaryGap: false,
       axisLabel: {
-        color: "#6B7280",
+        color: "#4B5563",
         formatter: (value: number) => {
           return new Date(value).toLocaleString("default", {
             month: "short",
@@ -536,19 +541,19 @@ export default function SalesPage() {
     yAxis: {
       type: "value",
       axisLabel: {
-        color: "#6B7280",
+        color: "#4B5563",
         formatter: (val: number) => `${val.toLocaleString()}`,
       },
       splitLine: {
         lineStyle: {
-          color: "#E5E7EB",
+          color: "#D1D5DB",
         },
       },
     },
     grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
+      left: "5%",
+      right: "5%",
+      bottom: "5%",
       containLabel: true,
     },
     series: [
@@ -556,14 +561,25 @@ export default function SalesPage() {
         name: metric === "qty" ? "Quantity" : "Amount",
         type: "line",
         smooth: true,
-        areaStyle: {
-          color: "rgba(59, 130, 246, 0.3)",
-        },
         lineStyle: {
-          color: "#3B82F6",
+          color: "#10B981",
+          width: 3,
+        },
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: "rgba(16, 185, 129, 0.5)" },
+              { offset: 1, color: "rgba(16, 185, 129, 0.1)" },
+            ],
+          },
         },
         itemStyle: {
-          color: "#3B82F6",
+          color: "#10B981",
         },
         data:
           salesOverTime.length > 0
@@ -576,20 +592,36 @@ export default function SalesPage() {
     ],
   };
 
-  const salesPieChartOptions = {
+  const salesDonutChartOptions = {
     tooltip: {
       trigger: "item",
       formatter: `{a} <br/>{b}: {c} (${metric === "qty" ? "units" : "%"})`,
     },
     legend: {
-      orient: "vertical",
-      left: "left",
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     series: [
       {
         name: metric === "qty" ? "Sales Quantity" : "Sales Amount",
         type: "pie",
-        radius: "50%",
+        radius: ["40%", "70%"], // Donut chart with inner radius
         data:
           salesByOffice.length > 0
             ? salesByOffice.map((item) => ({
@@ -597,6 +629,7 @@ export default function SalesPage() {
                 value: Number(item.value),
               }))
             : [{ name: "No Data", value: 0 }],
+        color: ["#8B5CF6", "#A78BFA", "#C4B5FD", "#DDD6FE"],
         emphasis: {
           itemStyle: {
             shadowBlur: 10,
@@ -608,50 +641,15 @@ export default function SalesPage() {
     ],
   };
 
-  const salesByGroupPieChartOptions = {
-    tooltip: {
-      trigger: "item",
-      formatter: `{a} <br/>{b}: {c} (${metric === "qty" ? "units" : "%"})`,
-    },
-    legend: {
-      orient: "vertical",
-      left: "left",
-    },
-    series: [
-      {
-        name:
-          metric === "qty"
-            ? "Sales by Group (Quantity)"
-            : "Sales by Group (Amount)",
-        type: "pie",
-        radius: "50%",
-        data:
-          salesByGroup.length > 0
-            ? salesByGroup.map((item) => ({
-                name: item.group,
-                value: Number(item.value),
-              }))
-            : [{ name: "No Data", value: 0 }],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: "rgba(0, 0, 0, 0.5)",
-          },
-        },
-      },
-    ],
-  };
-
-  const salesStackBarChartOptions = {
+  const salesClusteredBarChartOptions = {
     tooltip: {
       trigger: "axis",
       axisPointer: {
         type: "shadow",
       },
       formatter: (params) => {
-        const category = params[0].name;
-        let tooltip = `${category}<br/>`;
+        const office = params[0].axisValue;
+        let tooltip = `${office}<br/>`;
         params.forEach((param) => {
           tooltip += `${param.seriesName}: ${param.value.toLocaleString()}<br/>`;
         });
@@ -659,54 +657,47 @@ export default function SalesPage() {
       },
     },
     legend: {
-      orient: "vertical",
-      left: "left",
-      data: offices,
+      orient: "horizontal",
+      top: "0%",
+      textStyle: { color: "#4B5563" },
+      data: categories,
     },
     grid: {
-      left: "10%",
-      right: "4%",
-      bottom: "3%",
+      left: "5%",
+      right: "5%",
+      bottom: "5%",
       containLabel: true,
     },
     xAxis: {
       type: "category",
-      data: categories.length > 0 ? categories : ["No Data"],
+      data: offices.length > 0 ? offices : ["No Data"],
       axisLabel: {
-        color: "#6B7280",
-        rotate: categories.length > 5 ? 45 : 0,
+        color: "#4B5563",
+        rotate: offices.length > 5 ? 45 : 0,
       },
     },
     yAxis: {
       type: "value",
       axisLabel: {
-        color: "#6B7280",
+        color: "#4B5563",
         formatter: (val) => `${val.toLocaleString()}`,
       },
       splitLine: {
         lineStyle: {
-          color: "#E5E7EB",
+          color: "#D1D5DB",
         },
       },
     },
-    color: [
-      "#3B82F6",
-      "#10B981",
-      "#F59E0B",
-      "#EF4444",
-      "#8B5CF6",
-      "#EC4899",
-      "#6EE7B7",
-    ],
+    color: ["#F97316", "#FB923C", "#FDBA74", "#F7E5B7"],
     series:
       salesByCategoryOffice.length > 0
-        ? offices.map((office) => ({
-            name: office,
+        ? categories.map((category) => ({
+            name: category,
             type: "bar",
-            stack: "total",
-            data: categories.map((cat) => {
+            barGap: "0%", // No gap between bars of different categories
+            data: offices.map((office) => {
               const item = salesByCategoryOffice.find(
-                (d) => d.sales_office === office && d.category === cat,
+                (d) => d.sales_office === office && d.category === category,
               );
               return item ? Number(item.value) : 0;
             }),
@@ -715,11 +706,54 @@ export default function SalesPage() {
             {
               name: "No Data",
               type: "bar",
-              stack: "total",
               data: [0],
             },
           ],
   };
+
+  const salesRoseChartOptions = {
+    tooltip: {
+      trigger: "item",
+      formatter: `{a} <br/>{b}: {c} (${metric === "qty" ? "units" : "%"})`,
+    },
+    legend: {
+      orient: "vertical",
+      right: "0%",
+      textStyle: { color: "#4B5563" },
+    },
+    series: [
+      {
+        name:
+          metric === "qty"
+            ? "Sales by Group (Quantity)"
+            : "Sales by Group (Amount)",
+        type: "pie",
+        radius: ["20%", "55%"],
+        roseType: "area", // Nightingale rose chart
+        data:
+          salesByGroup.length > 0
+            ? salesByGroup.map((item) => ({
+                name: item.group,
+                value: Number(item.value),
+              }))
+            : [{ name: "No Data", value: 0 }],
+        color: ["#14B8A6", "#2DD4BF", "#5FEAD1", "#99F6E4"],
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: "rgba(0, 0, 0, 0.5)",
+          },
+        },
+      },
+    ],
+  };
+
+  // Calculate max value for progress bars in top products
+  const maxProductValue =
+    topProducts.length > 0
+      ? Math.max(...topProducts.map((item) => item.value))
+      : 1;
 
   return (
     <div className="space-y-6">
@@ -731,10 +765,39 @@ export default function SalesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={downloadReport}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48">
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => downloadReport("default")}
+                >
+                  Default Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => downloadReport("monthly")}
+                >
+                  Monthly Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => downloadReport("weekly")}
+                >
+                  Weekly Report
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="outline"
             size="sm"
@@ -924,64 +987,50 @@ export default function SalesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sales Amount</CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="h-4 w-4 text-blue-600" />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-lg font-bold">Key Metrics</CardTitle>
+          <div className="p-2 bg-green-100 rounded-lg">
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 bg-green-50 rounded-lg">
+              <div className="text-sm font-medium text-gray-700">
+                Sales Amount
+              </div>
+              <div className="text-xl font-bold text-green-800">
+                {salesQtyAmt[0].amt.toLocaleString()}
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {salesQtyAmt[0].amt.toLocaleString()}
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="text-sm font-medium text-gray-700">
+                Sales Quantity
+              </div>
+              <div className="text-xl font-bold text-blue-800">
+                {salesQtyAmt[0].qty.toLocaleString()}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Sales Quantity
-            </CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="h-4 w-4 text-blue-600" />
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <div className="text-sm font-medium text-gray-700">
+                Avg Unit Price
+              </div>
+              <div className="text-xl font-bold text-purple-800">
+                {avgUnitPrice[0].price.toLocaleString()}
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {salesQtyAmt[0].qty.toLocaleString()}
+            <div className="p-4 bg-orange-50 rounded-lg">
+              <div className="text-sm font-medium text-gray-700">
+                Avg Sales/Day
+              </div>
+              <div className="text-xl font-bold text-orange-800">
+                {avgDailySales[0].amt.toLocaleString()}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Avg Unit Price
-            </CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {avgUnitPrice[0].price.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Sales/Day</CardTitle>
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {avgDailySales[0].amt.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="md:col-span-2">
@@ -996,14 +1045,14 @@ export default function SalesPage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={salesAreaChartOptions}
+              option={salesSplineChartOptions}
               notMerge={true}
               lazyUpdate={true}
               style={{ height: 350 }}
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>
               {metric === "qty" ? "Sales Quantity" : "Sales Amount"} by Office
@@ -1011,14 +1060,14 @@ export default function SalesPage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={salesPieChartOptions}
+              option={salesDonutChartOptions}
               notMerge={true}
               lazyUpdate={true}
               style={{ height: 350 }}
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>
               {metric === "qty" ? "Sales Quantity" : "Sales Amount"} by Category
@@ -1027,14 +1076,14 @@ export default function SalesPage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={salesStackBarChartOptions}
+              option={salesClusteredBarChartOptions}
               notMerge={true}
               lazyUpdate={true}
               style={{ height: 350 }}
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>
               {metric === "qty" ? "Sales Quantity" : "Sales Amount"} by Group
@@ -1042,14 +1091,14 @@ export default function SalesPage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={salesByGroupPieChartOptions}
+              option={salesRoseChartOptions}
               notMerge={true}
               lazyUpdate={true}
               style={{ height: 350 }}
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle>
               Top 10 Products by{" "}
@@ -1059,7 +1108,7 @@ export default function SalesPage() {
           <CardContent>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm text-left text-gray-500">
-                <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+                <thead className="bg-amber-100 text-gray-700 uppercase text-xs">
                   <tr>
                     <th scope="col" className="px-4 py-3">
                       #
@@ -1070,6 +1119,9 @@ export default function SalesPage() {
                     <th scope="col" className="px-4 py-3">
                       {metric === "qty" ? "Quantity" : "Amount"}
                     </th>
+                    {/*<th scope="col" className="px-4 py-3">
+                      Progress
+                    </th>*/}
                   </tr>
                 </thead>
                 <tbody>
@@ -1077,18 +1129,32 @@ export default function SalesPage() {
                     topProducts.map((item, index) => (
                       <tr
                         key={item.product}
-                        className="border-b hover:bg-gray-50 transition"
+                        className={`border-b ${
+                          index % 2 === 0 ? "bg-amber-50" : "bg-white"
+                        } hover:bg-amber-100 transition`}
                       >
                         <td className="px-4 py-2">{index + 1}</td>
                         <td className="px-4 py-2">{item.product}</td>
                         <td className="px-4 py-2">
                           {item.value.toLocaleString()}
                         </td>
+                        {/*<td className="px-4 py-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="bg-amber-400 h-2.5 rounded-full"
+                              style={{
+                                width: `${
+                                  (item.value / maxProductValue) * 100
+                                }%`,
+                              }}
+                            ></div>
+                          </div>
+                        </td>*/}
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="px-4 py-2" colSpan={3}>
+                      <td className="px-4 py-2" colSpan={4}>
                         No data available
                       </td>
                     </tr>
