@@ -467,7 +467,7 @@ export default function ProductionPage() {
     fetchProductionOverTime();
   }, [org, warehouse, locator, product, category, productGroup, dateRange]);
 
-  async function download_report() {
+  async function download_report(reportType: "default" | "monthly" | "weekly") {
     try {
       // Construct query parameters from filter states
       const params = new URLSearchParams();
@@ -482,8 +482,13 @@ export default function ProductionPage() {
       if (dateRange.to)
         params.append("date_to", formatDateForTrino(dateRange.to));
 
+      // Determine report endpoint based on reportType
+      const reportId =
+        reportType === "default" ? "1" : reportType === "monthly" ? "2" : "3";
+      const reportName = `production_report_${reportType}.xlsx`;
+
       const response = await api.get(
-        `/reports/production/download/1?${params.toString()}`,
+        `/reports/production/download/${reportId}?${params.toString()}`,
         {
           responseType: "blob",
         },
@@ -496,15 +501,15 @@ export default function ProductionPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "production_report.xlsx";
+      link.download = reportName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      console.log("File downloaded successfully");
+      console.log(`File ${reportName} downloaded successfully`);
     } catch (error) {
-      console.error("Error downloading the report:", error);
+      console.error(`Error downloading the ${reportType} report:`, error);
       throw error;
     }
   }
@@ -597,8 +602,24 @@ export default function ProductionPage() {
       formatter: "{a} <br/>{b}: {c} ({d}%)",
     },
     legend: {
-      orient: "vertical",
-      left: "left",
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     series: [
       {
@@ -629,8 +650,24 @@ export default function ProductionPage() {
       formatter: "{a} <br/>{b}: {c} ({d}%)",
     },
     legend: {
-      orient: "vertical",
-      left: "left",
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     series: [
       {
@@ -671,14 +708,29 @@ export default function ProductionPage() {
       },
     },
     legend: {
-      orient: "vertical",
-      left: "left",
-      data: organizations,
+      orient: "horizontal",
+      bottom: "0%",
+      textStyle: { color: "#4B5563" },
+      type: "scroll", // Enable scrollable/paginated legend
+      pageButtonItemGap: 5, // Gap between page buttons and legend items
+      pageButtonGap: 10, // Gap between page buttons
+      pageButtonPosition: "end", // Position of pagination buttons (start/end)
+      pageFormatter: "{current}/{total}", // Format for page number display
+      pageIconSize: 12, // Size of pagination icons
+      pageIconColor: "#4B5563", // Color of pagination icons
+      pageIconInactiveColor: "#D1D5DB", // Color of inactive pagination icons
+      pageTextStyle: {
+        color: "#4B5563", // Color of page number text
+      },
+      itemWidth: 25, // Width of legend items
+      itemHeight: 14, // Height of legend items
+      height: 40, // Limit legend height to trigger pagination
+      selector: true, // Show select all/none buttons (optional)
     },
     grid: {
-      left: "10%",
+      left: "4%",
       right: "4%",
-      bottom: "3%",
+      bottom: "10%",
       containLabel: true,
     },
     xAxis: {
@@ -745,10 +797,39 @@ export default function ProductionPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={download_report}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48">
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("default")}
+                >
+                  Default Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("monthly")}
+                >
+                  Monthly Report
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => download_report("weekly")}
+                >
+                  Weekly Report
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -992,7 +1073,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Production by organization</CardTitle>
           </CardHeader>
@@ -1005,7 +1086,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Production by category and organization</CardTitle>
           </CardHeader>
@@ -1018,7 +1099,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Internal Cull/Mort/Comp by Product Group</CardTitle>
           </CardHeader>
@@ -1031,7 +1112,7 @@ export default function ProductionPage() {
             />
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
+        <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Top 10 Products by Production</CardTitle>
           </CardHeader>
