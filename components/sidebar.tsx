@@ -27,6 +27,8 @@ const navigation = [
     subItems: [
       { name: "Sales", href: "/dashboard/sales", icon: BarChart3 },
       { name: "Production", href: "/dashboard/production", icon: BarChart3 },
+      { name: "Accounts", href: "/dashboard/accounts", icon: BarChart3 },
+      { name: "Inventory", href: "/dashboard/inventory", icon: BarChart3 },
     ],
   },
 ];
